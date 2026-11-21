@@ -1,0 +1,74 @@
+name: CI on Pull Request
+
+on:
+  pull_request:
+    branches:
+      - '**'
+
+permissions:
+  statuses: write
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.12'
+        cache: 'pip'
+
+    - name: Install backend dependencies
+      run: pip install -r requirements.txt
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '22'
+        cache: 'npm'
+        cache-dependency-path: frontend/package-lock.json
+
+    - name: Install frontend dependencies
+      run: npm ci
+      working-directory: frontend
+
+    - name: Build frontend
+      run: npm run build
+      working-directory: frontend
+
+    - name: Run tests with coverage
+      run: pytest --cov=backend --cov-report=xml:./TestResults/coverage.xml --cov-report=term -v
+
+    - name: Post coverage status
+      if: github.event_name == 'pull_request'
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      shell: bash
+      run: |
+        COVERAGE=$(python3 -c "
+        import xml.etree.ElementTree as ET
+        tree = ET.parse('./TestResults/coverage.xml')
+        root = tree.getroot()
+        print(round(float(root.attrib['line-rate']) * 100, 1))
+        ")
+
+        echo "coverage=$COVERAGE" >> "$GITHUB_OUTPUT"
+
+        echo "### Code Coverage" >> "$GITHUB_STEP_SUMMARY"
+        echo "Line coverage: **${COVERAGE}%**" >> "$GITHUB_STEP_SUMMARY"
+
+        gh api repos/${{ github.repository }}/statuses/${{ github.event.pull_request.head.sha }} \
+          -f state="success" \
+          -f context="code-coverage" \
+          -f description="Line coverage: ${COVERAGE}%" \
+          -f target_url="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+
+    - name: Upload coverage report
+      uses: actions/upload-artifact@v4
+      with:
+        name: coverage-report
+        path: ./TestResults/
