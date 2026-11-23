@@ -1,0 +1,32 @@
+<!--
+  Example IIS site configuration for BibliothecaFabulae.
+
+  Prerequisites:
+  - IIS URL Rewrite module installed
+  - Application Request Routing (ARR) installed and enabled
+  - ARR proxy enabled: IIS Manager > Server > Application Request Routing > Server Proxy Settings > Enable proxy
+
+  Setup:
+  1. Create an IIS site pointing to the BibliothecaFabulae project root
+  2. Set the application pool to "No Managed Code"
+  3. Copy iis/web.config to the site root (or it's already there)
+  4. Run the backend via NSSM or as a Windows Service:
+     nssm install BibliothecaFabulae "C:\path\to\.venv\Scripts\uvicorn.exe" "backend.main:app --host 127.0.0.1 --port 8000"
+     nssm set BibliothecaFabulae AppDirectory "C:\path\to\BibliothecaFabulae"
+-->
+
+<site name="BibliothecaFabulae" id="2">
+    <application path="/" applicationPool="BibliothecaFabulaePool">
+        <virtualDirectory path="/" physicalPath="C:\inetpub\BibliothecaFabulae" />
+    </application>
+    <bindings>
+        <binding protocol="http" bindingInformation="*:80:" />
+        <!-- Add HTTPS binding with certificate:
+        <binding protocol="https" bindingInformation="*:443:" sslFlags="0" />
+        -->
+    </bindings>
+</site>
+
+<applicationPools>
+    <add name="BibliothecaFabulaePool" managedRuntimeVersion="" />
+</applicationPools>

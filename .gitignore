@@ -24,6 +24,7 @@ frontend/node_modules/
 frontend/build/
 frontend/.env.local
 frontend/.env.production.local
+frontend/coverage/
 
 # IDE
 .vs/
@@ -43,6 +44,14 @@ frontend/.env.production.local
 
 # Audio cache
 audio_cache/
+
+# SSL certificates
+nginx/ssl/
+
+# Docker volumes
+data/
+logs/
+storage/
 
 # OS
 .DS_Store

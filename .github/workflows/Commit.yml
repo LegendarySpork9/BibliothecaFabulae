@@ -20,7 +20,7 @@ jobs:
         cache: 'pip'
 
     - name: Install backend dependencies
-      run: pip install -r requirements.txt
+      run: pip install -r Deployments/requirements.txt
 
     - name: Setup Node.js
       uses: actions/setup-node@v4
