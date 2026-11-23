@@ -1,0 +1,224 @@
+# Load libraries
+import asyncio
+import logging
+
+from sqlalchemy import func, select, update
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from backend.models.notification import Notification, NotificationPreference
+from backend.models.settings import Settings
+
+logger = logging.getLogger(__name__)
+
+
+# Creates a notification and optionally triggers an email
+async def create_notification(
+    db: AsyncSession,
+    type: str,
+    title: str,
+    message: str,
+    severity: str = "info",
+    related_fic_id: int | None = None,
+) -> Notification | None:
+    pref_result = await db.execute(
+        select(NotificationPreference).where(
+            NotificationPreference.notification_type == type
+        )
+    )
+    pref = pref_result.scalar_one_or_none()
+
+    if pref is not None and not pref.ui_enabled and not pref.email_enabled:
+        return None
+
+    notification = None
+
+    if pref is None or pref.ui_enabled:
+        notification = Notification(
+            type=type,
+            title=title,
+            message=message,
+            severity=severity,
+            related_fic_id=related_fic_id,
+        )
+        db.add(notification)
+        await db.flush()
+
+    if pref is not None and pref.email_enabled:
+        settings_result = await db.execute(select(Settings).where(Settings.id == 1))
+        settings_row = settings_result.scalar_one_or_none()
+
+        if settings_row and settings_row.smtp_host:
+            asyncio.ensure_future(_send_notification_email(db, title, message))
+
+    return notification
+
+
+# Sends a notification email in the background
+async def _send_notification_email(db: AsyncSession, title: str, message: str) -> None:
+    try:
+        from backend.services.email_service import send_email
+
+        await send_email(
+            db,
+            subject=f"[BibliothecaFabulae] {title}",
+            body=message,
+        )
+
+    except Exception:
+        logger.exception("Failed to send notification email: %s", title)
+
+
+# Retrieves a paginated list of notifications with counts
+async def get_notifications(
+    db: AsyncSession,
+    unread_only: bool = False,
+    type_filter: str | None = None,
+    limit: int = 50,
+    offset: int = 0,
+) -> dict:
+    query = select(Notification)
+    count_query = select(func.count(Notification.id))
+    unread_query = select(func.count(Notification.id)).where(
+        Notification.is_read == False  # noqa: E712
+    )
+
+    if unread_only:
+        query = query.where(Notification.is_read == False)  # noqa: E712
+        count_query = count_query.where(Notification.is_read == False)  # noqa: E712
+
+    if type_filter:
+        query = query.where(Notification.type == type_filter)
+        count_query = count_query.where(Notification.type == type_filter)
+
+    query = query.order_by(Notification.created_at.desc()).offset(offset).limit(limit)
+
+    result = await db.execute(query)
+    notifications = result.scalars().all()
+
+    total_result = await db.execute(count_query)
+    total = total_result.scalar()
+
+    unread_result = await db.execute(unread_query)
+    unread_count = unread_result.scalar()
+
+    items = [
+        {
+            "id": n.id,
+            "type": n.type,
+            "title": n.title,
+            "message": n.message,
+            "severity": n.severity,
+            "is_read": n.is_read,
+            "related_fic_id": n.related_fic_id,
+            "email_sent": n.email_sent,
+            "created_at": n.created_at.isoformat() if n.created_at else None,
+        }
+        for n in notifications
+    ]
+
+    return {"items": items, "total": total, "unread_count": unread_count}
+
+
+# Returns the count of unread notifications
+async def get_unread_count(db: AsyncSession) -> int:
+    result = await db.execute(
+        select(func.count(Notification.id)).where(
+            Notification.is_read == False  # noqa: E712
+        )
+    )
+
+    return result.scalar()
+
+
+# Marks a single notification as read
+async def mark_read(db: AsyncSession, notification_id: int) -> dict:
+    result = await db.execute(
+        select(Notification).where(Notification.id == notification_id)
+    )
+    notification = result.scalar_one_or_none()
+
+    if notification is None:
+        raise ValueError("Notification not found")
+
+    notification.is_read = True
+    await db.flush()
+
+    return {"success": True}
+
+
+# Marks all unread notifications as read
+async def mark_all_read(db: AsyncSession) -> dict:
+    await db.execute(
+        update(Notification)
+        .where(Notification.is_read == False)  # noqa: E712
+        .values(is_read=True)
+    )
+    await db.flush()
+
+    return {"success": True}
+
+
+# Deletes a notification by its ID
+async def delete_notification(db: AsyncSession, notification_id: int) -> dict:
+    result = await db.execute(
+        select(Notification).where(Notification.id == notification_id)
+    )
+    notification = result.scalar_one_or_none()
+
+    if notification is None:
+        raise ValueError("Notification not found")
+
+    await db.delete(notification)
+    await db.flush()
+
+    return {"success": True}
+
+
+# Retrieves all notification delivery preferences
+async def get_preferences(db: AsyncSession) -> list[dict]:
+    result = await db.execute(
+        select(NotificationPreference).order_by(NotificationPreference.notification_type)
+    )
+    preferences = result.scalars().all()
+
+    return [
+        {
+            "id": p.id,
+            "notification_type": p.notification_type,
+            "ui_enabled": p.ui_enabled,
+            "email_enabled": p.email_enabled,
+        }
+        for p in preferences
+    ]
+
+
+# Updates the delivery settings for a specific notification type
+async def update_preference(
+    db: AsyncSession,
+    notification_type: str,
+    ui_enabled: bool | None = None,
+    email_enabled: bool | None = None,
+) -> dict:
+    result = await db.execute(
+        select(NotificationPreference).where(
+            NotificationPreference.notification_type == notification_type
+        )
+    )
+    pref = result.scalar_one_or_none()
+
+    if pref is None:
+        raise ValueError(f"Notification preference not found: {notification_type}")
+
+    if ui_enabled is not None:
+        pref.ui_enabled = ui_enabled
+
+    if email_enabled is not None:
+        pref.email_enabled = email_enabled
+
+    await db.flush()
+
+    return {
+        "notification_type": pref.notification_type,
+        "ui_enabled": pref.ui_enabled,
+        "email_enabled": pref.email_enabled,
+    }

@@ -1,0 +1,25 @@
+name: bibliothecafabulae
+
+services:
+  app:
+    container_name: bibliothecafabulae-app
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      - SECRET_KEY=dev-secret-key-not-for-production
+      - ENCRYPTION_KEY=dev-encryption-key-not-for-prod
+      - DATABASE_URL=sqlite+aiosqlite:///./data/bibliothecafabulae.db
+      - CORS_ORIGINS=["http://localhost:8080"]
+      - ENVIRONMENT=development
+      - LOG_DIR=./logs
+    volumes:
+      - ../data:/app/data
+      - ../logs:/app/logs
+      - ../storage:/app/storage
+    command: >
+      sh -c "alembic upgrade head 2>/dev/null || alembic stamp head &&
+             uvicorn backend.main:app --host 0.0.0.0 --port 8080"
