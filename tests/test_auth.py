@@ -1,11 +1,16 @@
 # Load libraries
+import hashlib
+from datetime import timedelta
+
 import pytest
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from backend.core.auth import hash_password
+from backend.core.auth import create_access_token, hash_password
 from backend.core.config import settings
 from backend.core.encryption import encrypt
+from backend.core.utils import utcnow
+from backend.models.session import RefreshToken
 from backend.models.settings import Settings as SettingsModel
 from backend.models.user import User
 
@@ -147,3 +152,200 @@ async def test_health_always_accessible(
 ):
     response = await client.get("/api/health")
     assert response.status_code == 200
+
+
+# Test that POST /api/auth/refresh with a valid refresh token returns a new access token
+@pytest.mark.asyncio
+async def test_refresh_with_valid_token(
+    client: AsyncClient, db_session: AsyncSession
+):
+    user = await _create_test_user(db_session)
+
+    raw_token = "test-refresh-token-value-for-rotation"
+    token_hash = hashlib.sha256(raw_token.encode()).hexdigest()
+
+    refresh = RefreshToken(
+        user_id=user.id,
+        token_hash=token_hash,
+        device_name="Unknown browser on Unknown OS",
+        remember_device=False,
+        expires_at=utcnow() + timedelta(days=7),
+        last_used_at=utcnow(),
+    )
+    db_session.add(refresh)
+    await db_session.flush()
+
+    response = await client.post(
+        "/api/auth/refresh",
+        cookies={"refresh_token": raw_token},
+    )
+    assert response.status_code == 200
+
+    data = response.json()
+    assert "access_token" in data
+    assert data["token_type"] == "bearer"
+
+
+# Test that POST /api/auth/refresh without a cookie returns 401
+@pytest.mark.asyncio
+async def test_refresh_without_cookie(
+    client: AsyncClient, db_session: AsyncSession
+):
+    await _create_test_user(db_session)
+
+    response = await client.post("/api/auth/refresh")
+    assert response.status_code == 401
+
+
+# Test that POST /api/auth/logout clears the session and returns 204
+@pytest.mark.asyncio
+async def test_logout_clears_session(
+    client: AsyncClient, db_session: AsyncSession
+):
+    user = await _create_test_user(db_session)
+
+    raw_token = "logout-test-token-value"
+    token_hash = hashlib.sha256(raw_token.encode()).hexdigest()
+
+    refresh = RefreshToken(
+        user_id=user.id,
+        token_hash=token_hash,
+        device_name="Test Client",
+        remember_device=False,
+        expires_at=utcnow() + timedelta(days=7),
+        last_used_at=utcnow(),
+    )
+    db_session.add(refresh)
+    await db_session.flush()
+
+    response = await client.post(
+        "/api/auth/logout",
+        cookies={"refresh_token": raw_token},
+    )
+    assert response.status_code == 204
+
+
+# Test that POST /api/auth/logout without a cookie still returns 204
+@pytest.mark.asyncio
+async def test_logout_without_cookie(
+    client: AsyncClient, db_session: AsyncSession
+):
+    await _create_test_user(db_session)
+
+    response = await client.post("/api/auth/logout")
+    assert response.status_code == 204
+
+
+# Test that GET /api/auth/sessions returns a session list for an authenticated user
+@pytest.mark.asyncio
+async def test_get_sessions_returns_list(
+    client: AsyncClient, db_session: AsyncSession
+):
+    user = await _create_test_user(db_session)
+
+    raw_token = "sessions-list-test-token"
+    token_hash = hashlib.sha256(raw_token.encode()).hexdigest()
+
+    refresh = RefreshToken(
+        user_id=user.id,
+        token_hash=token_hash,
+        device_name="Test Client",
+        remember_device=False,
+        expires_at=utcnow() + timedelta(days=7),
+        last_used_at=utcnow(),
+    )
+    db_session.add(refresh)
+    await db_session.flush()
+
+    access_token = create_access_token(user.id)
+
+    response = await client.get(
+        "/api/auth/sessions",
+        headers={"Authorization": f"Bearer {access_token}"},
+        cookies={"refresh_token": raw_token},
+    )
+    assert response.status_code == 200
+
+    data = response.json()
+    assert isinstance(data, list)
+    assert len(data) >= 1
+    assert "device_name" in data[0]
+    assert "is_current" in data[0]
+
+
+# Test that DELETE /api/auth/sessions/{id} revokes a session
+@pytest.mark.asyncio
+async def test_delete_session_revokes(
+    client: AsyncClient, db_session: AsyncSession
+):
+    user = await _create_test_user(db_session)
+
+    raw_token = "revoke-session-test-token"
+    token_hash = hashlib.sha256(raw_token.encode()).hexdigest()
+
+    refresh = RefreshToken(
+        user_id=user.id,
+        token_hash=token_hash,
+        device_name="Test Client",
+        remember_device=False,
+        expires_at=utcnow() + timedelta(days=7),
+        last_used_at=utcnow(),
+    )
+    db_session.add(refresh)
+    await db_session.flush()
+
+    session_id = refresh.id
+    access_token = create_access_token(user.id)
+
+    response = await client.delete(
+        f"/api/auth/sessions/{session_id}",
+        headers={"Authorization": f"Bearer {access_token}"},
+    )
+    assert response.status_code == 204
+
+
+# Test that DELETE /api/auth/sessions/{id} returns 404 for nonexistent session
+@pytest.mark.asyncio
+async def test_delete_session_not_found(
+    client: AsyncClient, db_session: AsyncSession
+):
+    user = await _create_test_user(db_session)
+    access_token = create_access_token(user.id)
+
+    response = await client.delete(
+        "/api/auth/sessions/99999",
+        headers={"Authorization": f"Bearer {access_token}"},
+    )
+    assert response.status_code == 404
+
+
+# Test that GET /api/auth/mode returns cloudflare_trust status
+@pytest.mark.asyncio
+async def test_auth_mode_returns_cloudflare_trust(
+    client: AsyncClient, db_session: AsyncSession
+):
+    await _create_test_user(db_session)
+
+    response = await client.get("/api/auth/mode")
+    assert response.status_code == 200
+
+    data = response.json()
+    assert "cloudflare_trust" in data
+    assert data["cloudflare_trust"] is False
+
+
+# Test that POST /api/auth/totp-only returns 403 when cloudflare trust is disabled
+@pytest.mark.asyncio
+async def test_totp_only_blocked_without_cloudflare_trust(
+    client: AsyncClient, db_session: AsyncSession
+):
+    await _create_test_user(db_session)
+
+    response = await client.post(
+        "/api/auth/totp-only",
+        json={
+            "totp_code": "123456",
+            "remember_device": False,
+        },
+    )
+    assert response.status_code == 403

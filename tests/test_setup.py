@@ -420,3 +420,120 @@ async def test_create_account_resets_existing_user(
 
     second_data = second_resp.json()
     assert "totp_secret" in second_data
+
+
+# Test that setup status returns step 4 after SMTP-pending state
+@pytest.mark.asyncio
+async def test_setup_status_step_4_after_storage(
+    client: AsyncClient, db_session: AsyncSession
+):
+    await _run_full_setup(client, db_session)
+
+    response = await client.get("/api/setup/status")
+    assert response.status_code == 200
+
+    data = response.json()
+    assert data["setup_complete"] is False
+    assert data["current_step"] == 4
+
+
+# Test that setup endpoints return 403 when setup_complete is True via DB
+@pytest.mark.asyncio
+async def test_setup_endpoints_403_when_complete_via_db(
+    client: AsyncClient, db_session: AsyncSession
+):
+    from backend.models.settings import Settings as SettingsModel
+    from backend.models.user import User as UserModel
+    from backend.core.auth import hash_password
+    from backend.core.config import settings
+    from backend.core.encryption import encrypt
+
+    totp_secret = pyotp.random_base32()
+    user = UserModel(
+        username="guarduser",
+        password_hash=hash_password(VALID_PASSWORD),
+        totp_secret_encrypted=encrypt(totp_secret, settings.ENCRYPTION_KEY),
+        totp_verified=True,
+    )
+    db_session.add(user)
+
+    app_settings = SettingsModel(
+        id=1,
+        storage_path="/tmp/test",
+        smtp_host="smtp.example.com",
+        setup_complete=True,
+    )
+    db_session.add(app_settings)
+    await db_session.flush()
+
+    status_resp = await client.get("/api/setup/status")
+    assert status_resp.status_code == 200
+    assert status_resp.json()["setup_complete"] is True
+
+    smtp_resp = await client.post(
+        "/api/setup/smtp",
+        json={
+            "smtp_host": "smtp.test.com",
+            "smtp_port": 587,
+            "smtp_username": "user",
+            "smtp_password": "pass",
+            "smtp_use_tls": True,
+            "smtp_from_address": "from@test.com",
+            "smtp_to_address": "to@test.com",
+        },
+    )
+    assert smtp_resp.status_code == 403
+
+    complete_resp = await client.post("/api/setup/complete")
+    assert complete_resp.status_code == 403
+
+
+# Test that POST /api/setup/smtp saves SMTP config after steps 1-3
+@pytest.mark.asyncio
+async def test_setup_smtp_saves_config(
+    client: AsyncClient, db_session: AsyncSession
+):
+    await _run_full_setup(client, db_session)
+
+    response = await client.post(
+        "/api/setup/smtp",
+        json={
+            "smtp_host": "smtp.example.com",
+            "smtp_port": 587,
+            "smtp_username": "user@example.com",
+            "smtp_password": "smtppass",
+            "smtp_use_tls": True,
+            "smtp_from_address": "from@example.com",
+            "smtp_to_address": "to@example.com",
+        },
+    )
+    assert response.status_code == 200
+    assert response.json()["configured"] is True
+
+
+# Test that GET /api/setup/status returns step 5 after all steps complete but not finalised
+@pytest.mark.asyncio
+async def test_setup_status_step_5_after_smtp(
+    client: AsyncClient, db_session: AsyncSession
+):
+    await _run_full_setup(client, db_session)
+
+    await client.post(
+        "/api/setup/smtp",
+        json={
+            "smtp_host": "smtp.example.com",
+            "smtp_port": 587,
+            "smtp_username": "user@example.com",
+            "smtp_password": "smtppass",
+            "smtp_use_tls": True,
+            "smtp_from_address": "from@example.com",
+            "smtp_to_address": "to@example.com",
+        },
+    )
+
+    response = await client.get("/api/setup/status")
+    assert response.status_code == 200
+
+    data = response.json()
+    assert data["setup_complete"] is False
+    assert data["current_step"] == 5

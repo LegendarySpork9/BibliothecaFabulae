@@ -232,3 +232,220 @@ async def test_get_storage_unconfigured_path(
 
     response = await client.get("/api/storage", headers=headers)
     assert response.status_code == 400
+
+
+# Test that PATCH /api/settings/smtp saves SMTP configuration
+@pytest.mark.asyncio
+async def test_patch_smtp(client: AsyncClient, db_session: AsyncSession):
+    headers = await _authenticated_headers(db_session)
+
+    response = await client.patch(
+        "/api/settings/smtp",
+        json={
+            "smtp_host": "smtp.example.com",
+            "smtp_port": 587,
+            "smtp_username": "user@example.com",
+            "smtp_password": "secret",
+            "smtp_use_tls": True,
+            "smtp_from_address": "from@example.com",
+            "smtp_to_address": "to@example.com",
+        },
+        headers=headers,
+    )
+    assert response.status_code == 200
+    assert response.json()["configured"] is True
+
+
+# Test that PATCH /api/settings/backup saves backup configuration
+@pytest.mark.asyncio
+async def test_patch_backup(client: AsyncClient, db_session: AsyncSession):
+    headers = await _authenticated_headers(db_session)
+
+    response = await client.patch(
+        "/api/settings/backup",
+        json={
+            "backup_location": "/tmp/backups",
+            "backup_schedule": "daily",
+        },
+        headers=headers,
+    )
+    assert response.status_code == 200
+
+    data = response.json()
+    assert data["backup_location"] == "/tmp/backups"
+    assert data["backup_schedule"] == "daily"
+
+
+# Test that PATCH /api/settings/remember-device with valid days succeeds
+@pytest.mark.asyncio
+async def test_patch_remember_device_valid(
+    client: AsyncClient, db_session: AsyncSession
+):
+    headers = await _authenticated_headers(db_session)
+
+    response = await client.patch(
+        "/api/settings/remember-device",
+        json={"days": 14},
+        headers=headers,
+    )
+    assert response.status_code == 200
+    assert response.json()["remember_device_days"] == 14
+
+
+# Test that PATCH /api/settings/remember-device with 0 days returns 400
+@pytest.mark.asyncio
+async def test_patch_remember_device_zero(
+    client: AsyncClient, db_session: AsyncSession
+):
+    headers = await _authenticated_headers(db_session)
+
+    response = await client.patch(
+        "/api/settings/remember-device",
+        json={"days": 0},
+        headers=headers,
+    )
+    assert response.status_code == 400
+
+
+# Test that PATCH /api/settings/remember-device with 400 days returns 400
+@pytest.mark.asyncio
+async def test_patch_remember_device_too_high(
+    client: AsyncClient, db_session: AsyncSession
+):
+    headers = await _authenticated_headers(db_session)
+
+    response = await client.patch(
+        "/api/settings/remember-device",
+        json={"days": 400},
+        headers=headers,
+    )
+    assert response.status_code == 400
+
+
+# Test that PATCH /api/account/password with correct current password succeeds
+@pytest.mark.asyncio
+async def test_patch_password_success(
+    client: AsyncClient, db_session: AsyncSession
+):
+    headers = await _authenticated_headers(db_session)
+
+    response = await client.patch(
+        "/api/account/password",
+        json={
+            "current_password": VALID_PASSWORD,
+            "new_password": "NewSecureP@ss456!",
+            "new_password_confirm": "NewSecureP@ss456!",
+        },
+        headers=headers,
+    )
+    assert response.status_code == 200
+    assert response.json()["success"] is True
+
+
+# Test that PATCH /api/account/password with wrong current password returns 400
+@pytest.mark.asyncio
+async def test_patch_password_wrong_current(
+    client: AsyncClient, db_session: AsyncSession
+):
+    headers = await _authenticated_headers(db_session)
+
+    response = await client.patch(
+        "/api/account/password",
+        json={
+            "current_password": "WrongP@ssword123!",
+            "new_password": "NewSecureP@ss456!",
+            "new_password_confirm": "NewSecureP@ss456!",
+        },
+        headers=headers,
+    )
+    assert response.status_code == 400
+
+
+# Test that PATCH /api/settings/cloudflare-trust toggles the setting
+@pytest.mark.asyncio
+async def test_patch_cloudflare_trust(
+    client: AsyncClient, db_session: AsyncSession
+):
+    headers = await _authenticated_headers(db_session)
+
+    response = await client.patch(
+        "/api/settings/cloudflare-trust",
+        json={"enabled": True},
+        headers=headers,
+    )
+    assert response.status_code == 200
+    assert response.json()["cloudflare_trust_enabled"] is True
+
+    response = await client.patch(
+        "/api/settings/cloudflare-trust",
+        json={"enabled": False},
+        headers=headers,
+    )
+    assert response.status_code == 200
+    assert response.json()["cloudflare_trust_enabled"] is False
+
+
+# Test that POST /api/account/totp/regenerate returns new QR data
+@pytest.mark.asyncio
+async def test_totp_regenerate(client: AsyncClient, db_session: AsyncSession):
+    headers = await _authenticated_headers(db_session)
+
+    response = await client.post(
+        "/api/account/totp/regenerate",
+        headers=headers,
+    )
+    assert response.status_code == 200
+
+    data = response.json()
+    assert "totp_secret" in data
+    assert "totp_uri" in data
+    assert "qr_code_base64" in data
+    assert len(data["totp_secret"]) > 0
+
+
+# Test that POST /api/settings/smtp/test returns a response when SMTP is not configured
+@pytest.mark.asyncio
+async def test_smtp_test_unconfigured(
+    client: AsyncClient, db_session: AsyncSession
+):
+    headers = await _authenticated_headers(db_session)
+
+    response = await client.post("/api/settings/smtp/test", headers=headers)
+    assert response.status_code == 200
+
+    data = response.json()
+    assert "success" in data
+    assert "message" in data
+    assert data["success"] is False
+
+
+# Test that POST /api/account/totp/regenerate returns valid QR data with URI
+@pytest.mark.asyncio
+async def test_totp_regenerate_contains_uri(
+    client: AsyncClient, db_session: AsyncSession
+):
+    headers = await _authenticated_headers(db_session)
+
+    response = await client.post(
+        "/api/account/totp/regenerate",
+        headers=headers,
+    )
+    assert response.status_code == 200
+
+    data = response.json()
+    assert "otpauth://" in data["totp_uri"]
+    assert "BibliothecaFabulae" in data["totp_uri"]
+
+
+# Test that GET /api/storage/warnings returns a list
+@pytest.mark.asyncio
+async def test_storage_warnings_returns_list(
+    client: AsyncClient, db_session: AsyncSession
+):
+    headers = await _authenticated_headers(db_session)
+
+    response = await client.get("/api/storage/warnings", headers=headers)
+    assert response.status_code == 200
+
+    data = response.json()
+    assert isinstance(data, list)

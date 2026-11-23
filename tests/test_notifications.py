@@ -388,3 +388,86 @@ async def test_get_notifications_unread_only(
     data = response.json()
     assert data["total"] == 1
     assert data["items"][0]["title"] == "Unread one"
+
+
+# Test that filtering notifications by type returns only matching items
+@pytest.mark.asyncio
+async def test_get_notifications_filter_by_type(
+    client: AsyncClient, db_session: AsyncSession
+):
+    headers = await _authenticated_headers(db_session)
+
+    db_session.add(
+        Notification(
+            type="fic_updated",
+            title="Fic update",
+            message="A fic was updated.",
+            severity="info",
+        )
+    )
+    db_session.add(
+        Notification(
+            type="sync_complete",
+            title="Sync done",
+            message="Sync completed.",
+            severity="info",
+        )
+    )
+    db_session.add(
+        Notification(
+            type="fic_updated",
+            title="Another fic update",
+            message="Another fic was updated.",
+            severity="info",
+        )
+    )
+    await db_session.flush()
+
+    response = await client.get(
+        "/api/notifications?type=fic_updated", headers=headers
+    )
+    assert response.status_code == 200
+
+    data = response.json()
+    assert data["total"] == 2
+
+    for item in data["items"]:
+        assert item["type"] == "fic_updated"
+
+
+# Test that pagination limits and offsets notifications correctly
+@pytest.mark.asyncio
+async def test_get_notifications_pagination(
+    client: AsyncClient, db_session: AsyncSession
+):
+    headers = await _authenticated_headers(db_session)
+
+    for i in range(25):
+        db_session.add(
+            Notification(
+                type="fic_updated",
+                title=f"Notification {i}",
+                message=f"Message {i}.",
+                severity="info",
+            )
+        )
+
+    await db_session.flush()
+
+    response = await client.get(
+        "/api/notifications?limit=10&offset=0", headers=headers
+    )
+    assert response.status_code == 200
+
+    data = response.json()
+    assert len(data["items"]) == 10
+    assert data["total"] == 25
+
+    response2 = await client.get(
+        "/api/notifications?limit=10&offset=20", headers=headers
+    )
+    assert response2.status_code == 200
+
+    data2 = response2.json()
+    assert len(data2["items"]) == 5
+    assert data2["total"] == 25

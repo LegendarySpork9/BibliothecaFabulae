@@ -51,4 +51,34 @@ describe("DashboardPage", () => {
       screen.getByText("Latin: Library of Tales")
     ).toBeInTheDocument();
   });
+
+  it("renders storage card with Storage heading", async () => {
+    renderDashboard();
+
+    expect(await screen.findByText("Storage")).toBeInTheDocument();
+  });
+
+  it("renders Recent Notifications heading", () => {
+    renderDashboard();
+
+    expect(
+      screen.getByText("Recent Notifications")
+    ).toBeInTheDocument();
+  });
+
+  it("shows No notifications yet. when empty", async () => {
+    renderDashboard();
+
+    expect(
+      await screen.findByText("No notifications yet.")
+    ).toBeInTheDocument();
+  });
+
+  it("renders the description text about the archive", () => {
+    renderDashboard();
+
+    expect(
+      screen.getByText(/Your self-hosted personal fanfiction archive/)
+    ).toBeInTheDocument();
+  });
 });
