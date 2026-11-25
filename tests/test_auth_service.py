@@ -156,7 +156,7 @@ async def test_refresh_tokens_valid(db_session: AsyncSession):
     user = await _create_user(db_session)
     raw_token = await _create_refresh_token(db_session, user.id)
 
-    success, access_token, new_refresh = await refresh_tokens(db_session, raw_token)
+    success, access_token, new_refresh, _remember = await refresh_tokens(db_session, raw_token)
     assert success is True
     assert access_token is not None
     assert new_refresh is not None
@@ -169,7 +169,7 @@ async def test_refresh_tokens_expired(db_session: AsyncSession):
     user = await _create_user(db_session)
     raw_token = await _create_refresh_token(db_session, user.id, expired=True)
 
-    success, access_token, new_refresh = await refresh_tokens(db_session, raw_token)
+    success, access_token, new_refresh, _remember = await refresh_tokens(db_session, raw_token)
     assert success is False
     assert access_token is None
     assert new_refresh is None
@@ -183,7 +183,7 @@ async def test_logout_deletes_token(db_session: AsyncSession):
 
     await logout(db_session, raw_token)
 
-    success, _, _ = await refresh_tokens(db_session, raw_token)
+    success, _, _, _remember = await refresh_tokens(db_session, raw_token)
     assert success is False
 
 

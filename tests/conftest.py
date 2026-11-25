@@ -13,6 +13,15 @@ import backend.models.notification  # noqa: F401
 import backend.models.session  # noqa: F401
 import backend.models.settings  # noqa: F401
 import backend.models.user  # noqa: F401
+import backend.models.fic  # noqa: F401
+import backend.models.chapter_version  # noqa: F401
+import backend.models.author  # noqa: F401
+import backend.models.fandom  # noqa: F401
+import backend.models.tag  # noqa: F401
+import backend.models.relationship  # noqa: F401
+import backend.models.character  # noqa: F401
+import backend.models.source  # noqa: F401
+import backend.models.download_job  # noqa: F401
 from backend.core.database import get_db
 from backend.models.base import Base
 
@@ -29,11 +38,21 @@ test_session = async_sessionmaker(
 async def db_session() -> AsyncGenerator[AsyncSession, None]:
     async with test_engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+        await conn.execute(
+            __import__("sqlalchemy").text(
+                "CREATE VIRTUAL TABLE IF NOT EXISTS fic_content_fts USING fts5("
+                "fic_id UNINDEXED, chapter_id UNINDEXED, title, content, "
+                "tokenize='porter unicode61')"
+            )
+        )
 
     async with test_session() as session:
         yield session
 
     async with test_engine.begin() as conn:
+        await conn.execute(
+            __import__("sqlalchemy").text("DROP TABLE IF EXISTS fic_content_fts")
+        )
         await conn.run_sync(Base.metadata.drop_all)
 
 

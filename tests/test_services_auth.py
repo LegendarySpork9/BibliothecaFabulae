@@ -42,7 +42,7 @@ async def test_verify_totp_valid(db_session: AsyncSession):
     totp = pyotp.TOTP(totp_secret)
     code = totp.now()
 
-    success, access_token, refresh_token = await verify_totp_and_issue_tokens(
+    success, access_token, refresh_token, _remember = await verify_totp_and_issue_tokens(
         db_session, temp_token, code
     )
 
@@ -58,7 +58,7 @@ async def test_verify_totp_valid(db_session: AsyncSession):
 async def test_verify_totp_invalid_temp_token(db_session: AsyncSession):
     login_attempts.reset()
 
-    success, access_token, refresh_token = await verify_totp_and_issue_tokens(
+    success, access_token, refresh_token, _remember = await verify_totp_and_issue_tokens(
         db_session, "invalid-token", "123456"
     )
 
@@ -75,7 +75,7 @@ async def test_verify_totp_wrong_code(db_session: AsyncSession):
 
     temp_token = create_temp_token(user.id)
 
-    success, access_token, refresh_token = await verify_totp_and_issue_tokens(
+    success, access_token, refresh_token, _remember = await verify_totp_and_issue_tokens(
         db_session, temp_token, "000000"
     )
 
@@ -98,7 +98,7 @@ async def test_verify_totp_wrong_scope(db_session: AsyncSession):
     totp = pyotp.TOTP(totp_secret)
     code = totp.now()
 
-    success, at, rt = await verify_totp_and_issue_tokens(
+    success, at, rt, _rem = await verify_totp_and_issue_tokens(
         db_session, access_token, code
     )
 
@@ -117,7 +117,7 @@ async def test_verify_totp_remember_device(db_session: AsyncSession):
     totp = pyotp.TOTP(totp_secret)
     code = totp.now()
 
-    success, access_token, refresh_token = await verify_totp_and_issue_tokens(
+    success, access_token, refresh_token, _remember = await verify_totp_and_issue_tokens(
         db_session,
         temp_token,
         code,
@@ -141,13 +141,13 @@ async def test_refresh_tokens_updates_last_used(db_session: AsyncSession):
     code = totp.now()
 
     # First issue tokens via TOTP verification
-    success, _, refresh_raw = await verify_totp_and_issue_tokens(
+    success, _, refresh_raw, _rem2 = await verify_totp_and_issue_tokens(
         db_session, temp_token, code
     )
     assert success is True
 
     # Now refresh
-    success2, new_access, new_refresh = await refresh_tokens(db_session, refresh_raw)
+    success2, new_access, new_refresh, _rem3 = await refresh_tokens(db_session, refresh_raw)
     assert success2 is True
     assert new_access is not None
     assert new_refresh is not None

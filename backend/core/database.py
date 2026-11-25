@@ -46,6 +46,15 @@ async def init_db() -> None:
     import backend.models.settings  # noqa: F401
     import backend.models.notification  # noqa: F401
     import backend.models.session  # noqa: F401
+    import backend.models.fic  # noqa: F401
+    import backend.models.chapter_version  # noqa: F401
+    import backend.models.author  # noqa: F401
+    import backend.models.fandom  # noqa: F401
+    import backend.models.tag  # noqa: F401
+    import backend.models.relationship  # noqa: F401
+    import backend.models.character  # noqa: F401
+    import backend.models.source  # noqa: F401
+    import backend.models.download_job  # noqa: F401
 
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)

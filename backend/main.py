@@ -18,6 +18,8 @@ from backend.api.middleware import SetupGuardMiddleware
 from backend.api.notifications import router as notifications_router
 from backend.api.settings import router as settings_router
 from backend.api.setup import router as setup_router
+from backend.api.fics import router as fics_router
+from backend.api.sources import router as sources_router
 from backend.core.config import settings, validate_secrets
 from backend.core.database import init_db
 from backend.core.logging_config import setup_logging
@@ -30,7 +32,15 @@ async def lifespan(app: FastAPI):
     validate_secrets()
     setup_logging()
     await init_db()
+
+    from backend.core.scheduler import init_scheduler, scheduler
+    from backend.core.database import async_session
+    await init_scheduler(async_session)
+    scheduler.start()
+
     yield
+
+    scheduler.shutdown()
 
 
 app = FastAPI(
@@ -105,6 +115,8 @@ app.include_router(auth_router)
 app.include_router(setup_router)
 app.include_router(settings_router)
 app.include_router(notifications_router)
+app.include_router(sources_router)
+app.include_router(fics_router)
 
 # SPA static file serving
 frontend_build = os.path.join(os.path.dirname(__file__), "..", "frontend", "build")

@@ -2,14 +2,18 @@ import clsx from "clsx";
 import {
   Archive,
   BellRing,
+  Globe,
   HardDrive,
   Mail,
   Palette,
+  RefreshCw,
   UserCircle,
 } from "lucide-react";
 import { NavLink, Outlet } from "react-router-dom";
 
 const tabs = [
+  { to: "/settings/sources", label: "Sources", icon: Globe },
+  { to: "/settings/sync", label: "Sync", icon: RefreshCw },
   { to: "/settings/storage", label: "Storage", icon: HardDrive },
   { to: "/settings/theme", label: "Theme", icon: Palette },
   { to: "/settings/account", label: "Account", icon: UserCircle },

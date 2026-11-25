@@ -149,7 +149,7 @@ async def totp_only(
             detail="No user account found",
         )
 
-    success, access_token, refresh_token = await verify_totp_and_issue_tokens(
+    success, access_token, refresh_token, _remember = await verify_totp_and_issue_tokens(
         db,
         temp_token,
         body.totp_code,
@@ -177,7 +177,7 @@ async def verify_totp(
     body: VerifyTotpRequest,
     db: AsyncSession = Depends(get_db),
 ):
-    success, access_token, refresh_token = await verify_totp_and_issue_tokens(
+    success, access_token, refresh_token, _remember = await verify_totp_and_issue_tokens(
         db,
         body.temp_token,
         body.totp_code,
@@ -211,7 +211,7 @@ async def refresh(
         )
 
     current_ua = request.headers.get("User-Agent")
-    success, access_token, new_refresh = await refresh_tokens(
+    success, access_token, new_refresh, remember = await refresh_tokens(
         db, refresh_token, current_ua
     )
 
@@ -222,7 +222,7 @@ async def refresh(
             detail="Invalid or expired refresh token",
         )
 
-    _set_refresh_cookie(response, new_refresh)
+    _set_refresh_cookie(response, new_refresh, remember=remember)
 
     return TokenResponse(access_token=access_token)
 
