@@ -2,8 +2,13 @@ import {
   Archive,
   Bell,
   BellRing,
+  BookOpen,
   ChevronLeft,
   ChevronRight,
+  Download,
+  Globe,
+  Globe2,
+  RefreshCw,
   HardDrive,
   LayoutDashboard,
   LogOut,
@@ -13,7 +18,10 @@ import {
   X,
 } from "lucide-react";
 import { useEffect } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { useLocation } from "react-router-dom";
+
+import { getUnreadCount } from "../../api/notifications";
 
 import { useAuth } from "../../hooks/useAuth";
 import { SidebarLink } from "./SidebarLink";
@@ -34,13 +42,23 @@ export function Sidebar({
   const location = useLocation();
   const { logout } = useAuth();
 
+  const { data: unreadData } = useQuery({
+    queryKey: ["notifications", "unread-count"],
+    queryFn: getUnreadCount,
+    refetchInterval: 10000,
+  });
+
+  const unreadCount = unreadData?.unread_count || 0;
+
   useEffect(() => {
     onClose();
   }, [location.pathname, onClose]);
 
   useEffect(() => {
     const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
+      if (e.key === "Escape") {
+        onClose();
+      }
     };
 
     if (open) {
@@ -61,11 +79,36 @@ export function Sidebar({
             collapsed={collapsed}
           />
           <SidebarLink
-            to="/notifications"
-            icon={Bell}
-            label="Notifications"
+            to="/library"
+            icon={BookOpen}
+            label="Library"
             collapsed={collapsed}
           />
+          <SidebarLink
+            to="/downloads"
+            icon={Download}
+            label="Downloads"
+            collapsed={collapsed}
+          />
+          <SidebarLink
+            to="/sites"
+            icon={Globe2}
+            label="Supported Sites"
+            collapsed={collapsed}
+          />
+          <div className="relative">
+            <SidebarLink
+              to="/notifications"
+              icon={Bell}
+              label="Notifications"
+              collapsed={collapsed}
+            />
+            {unreadCount > 0 && (
+              <span className="absolute -top-0.5 left-5 flex h-4 min-w-[1rem] items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white pointer-events-none">
+                {unreadCount > 99 ? "99+" : unreadCount}
+              </span>
+            )}
+          </div>
 
           <div className="pt-4 pb-2">
             {!collapsed && (
@@ -75,6 +118,18 @@ export function Sidebar({
             )}
           </div>
 
+          <SidebarLink
+            to="/settings/sources"
+            icon={Globe}
+            label="Sources"
+            collapsed={collapsed}
+          />
+          <SidebarLink
+            to="/settings/sync"
+            icon={RefreshCw}
+            label="Sync"
+            collapsed={collapsed}
+          />
           <SidebarLink
             to="/settings/storage"
             icon={HardDrive}

@@ -10,10 +10,10 @@ export function NotificationBell() {
   const { data } = useQuery({
     queryKey: ["notifications", "unread-count"],
     queryFn: getUnreadCount,
-    refetchInterval: 30_000,
+    refetchInterval: 10_000,
   });
 
-  const count = data?.count ?? 0;
+  const count = data?.unread_count ?? 0;
 
   return (
     <button

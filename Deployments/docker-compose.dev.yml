@@ -8,18 +8,30 @@ services:
       dockerfile: Dockerfile
     restart: unless-stopped
     ports:
-      - "8080:8080"
+      - "7000:7000"
     environment:
       - SECRET_KEY=dev-secret-key-not-for-production
       - ENCRYPTION_KEY=dev-encryption-key-not-for-prod
       - DATABASE_URL=sqlite+aiosqlite:///./data/bibliothecafabulae.db
-      - CORS_ORIGINS=["http://localhost:8080"]
+      - CORS_ORIGINS=["http://localhost:7000"]
       - ENVIRONMENT=development
       - LOG_DIR=./logs
+      - FLARESOLVERR_URL=http://flaresolverr:8191
     volumes:
       - ../data:/app/data
       - ../logs:/app/logs
       - ../storage:/app/storage
+    depends_on:
+      - flaresolverr
     command: >
       sh -c "alembic upgrade head 2>/dev/null || alembic stamp head &&
-             uvicorn backend.main:app --host 0.0.0.0 --port 8080"
+             uvicorn backend.main:app --host 0.0.0.0 --port 7000"
+
+  flaresolverr:
+    image: ghcr.io/flaresolverr/flaresolverr:latest
+    container_name: bibliothecafabulae-flaresolverr
+    environment:
+      - LOG_LEVEL=info
+      - BROWSER_TIMEOUT=120000
+      - TZ=Europe/London
+    restart: unless-stopped

@@ -128,23 +128,23 @@ async def verify_totp_and_issue_tokens(
         payload = decode_token(temp_token)
 
     except Exception:
-        return False, None, None
+        return False, None, None, False
 
     if payload.get("scope") != "totp_verification":
-        return False, None, None
+        return False, None, None, False
 
     user_id = int(payload["sub"])
     totp_key = f"totp:{user_id}"
 
     if login_attempts.is_locked_out(totp_key):
         logger.warning("TOTP locked out due to repeated failures for user_id: %d", user_id)
-        return False, None, None
+        return False, None, None, False
 
     result = await db.execute(select(User).where(User.id == user_id))
     user = result.scalar_one_or_none()
 
     if user is None:
-        return False, None, None
+        return False, None, None, False
 
     totp_secret = decrypt(
         user.totp_secret_encrypted,
@@ -155,7 +155,7 @@ async def verify_totp_and_issue_tokens(
     if not verify_totp(totp_secret, totp_code):
         login_attempts.record_failure(totp_key)
         logger.warning("Failed TOTP verification for user_id: %d", user_id)
-        return False, None, None
+        return False, None, None, False
 
     login_attempts.clear(totp_key)
     access_token = create_access_token(user.id)
@@ -180,7 +180,7 @@ async def verify_totp_and_issue_tokens(
     db.add(refresh)
     await db.flush()
 
-    return True, access_token, refresh_token_raw
+    return True, access_token, refresh_token_raw, remember_device
 
 
 # Rotates a refresh token and issues a new access token
@@ -199,7 +199,7 @@ async def refresh_tokens(
             await db.delete(token_row)
             await db.flush()
 
-        return False, None, None
+        return False, None, None, False
 
     if current_ua and token_row.device_name:
         parsed_ua = _parse_user_agent(current_ua)
@@ -213,7 +213,7 @@ async def refresh_tokens(
             await db.delete(token_row)
             await db.flush()
 
-            return False, None, None
+            return False, None, None, False
 
     user_id = token_row.user_id
     remember_device = token_row.remember_device
@@ -244,7 +244,7 @@ async def refresh_tokens(
     db.add(new_token)
     await db.flush()
 
-    return True, access_token, new_refresh_raw
+    return True, access_token, new_refresh_raw, remember_device
 
 
 # Revokes a single refresh token by its raw value

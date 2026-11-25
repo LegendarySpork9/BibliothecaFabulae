@@ -53,15 +53,56 @@ async def create_notification(
     return notification
 
 
+# Builds a branded HTML email from notification content
+def _build_email_html(title: str, message: str) -> str:
+    import html
+
+    safe_title = html.escape(title)
+    safe_message = html.escape(message)
+
+    return f"""<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body style="margin:0;padding:0;background-color:#f3f4f6;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
+<table width="100%" cellpadding="0" cellspacing="0" style="background-color:#f3f4f6;padding:24px 0;">
+<tr><td align="center">
+<table width="560" cellpadding="0" cellspacing="0" style="max-width:560px;width:100%;">
+
+<tr><td style="background-color:#4f46e5;padding:20px 24px;border-radius:8px 8px 0 0;">
+<span style="color:#ffffff;font-size:18px;font-weight:700;">&#128218; Bibliotheca Fabulae</span>
+</td></tr>
+
+<tr><td style="background-color:#ffffff;padding:24px;border-left:1px solid #e5e7eb;border-right:1px solid #e5e7eb;">
+<h2 style="margin:0 0 12px 0;font-size:18px;color:#111827;">{safe_title}</h2>
+<p style="margin:0;font-size:14px;line-height:1.6;color:#374151;">{safe_message}</p>
+</td></tr>
+
+<tr><td style="background-color:#f9fafb;padding:16px 24px;border:1px solid #e5e7eb;border-top:0;border-radius:0 0 8px 8px;">
+<p style="margin:0;font-size:12px;color:#9ca3af;">Bibliotheca Fabulae &mdash; Your personal fanfiction archive</p>
+</td></tr>
+
+</table>
+</td></tr>
+</table>
+</body>
+</html>"""
+
+
 # Sends a notification email in the background
 async def _send_notification_email(db: AsyncSession, title: str, message: str) -> None:
     try:
         from backend.services.email_service import send_email
 
+        html_body = _build_email_html(title, message)
+
         await send_email(
             db,
-            subject=f"[BibliothecaFabulae] {title}",
+            subject=title,
             body=message,
+            html_body=html_body,
         )
 
     except Exception:

@@ -17,3 +17,7 @@ pytest==8.3.4
 pytest-cov==6.0.0
 pytest-asyncio==0.24.0
 httpx==0.28.1
+FanFicFare>=4.35.0
+ao3-py>=2026.8.30
+beautifulsoup4>=4.12.0
+lxml>=5.0.0

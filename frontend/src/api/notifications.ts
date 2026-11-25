@@ -19,7 +19,7 @@ export async function getNotifications(params?: {
   return response.data;
 }
 
-export async function getUnreadCount(): Promise<{ count: number }> {
+export async function getUnreadCount(): Promise<{ unread_count: number }> {
   const response = await client.get("/notifications/unread-count");
 
   return response.data;

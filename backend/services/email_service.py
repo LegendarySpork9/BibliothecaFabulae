@@ -39,9 +39,11 @@ async def send_email(
                 settings.ENCRYPTION_KEY_PREVIOUS or None,
             )
 
+        from email.utils import formataddr
+
         msg = MIMEMultipart("alternative")
         msg["Subject"] = subject
-        msg["From"] = settings_row.smtp_from_address
+        msg["From"] = formataddr(("Bibliotheca Fabulae", settings_row.smtp_from_address))
         msg["To"] = settings_row.smtp_to_address
 
         msg.attach(MIMEText(body, "plain"))

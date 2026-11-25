@@ -8,14 +8,20 @@ import { AuthProvider } from "./contexts/AuthContext";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import { ToastProvider } from "./contexts/ToastContext";
 import { DashboardPage } from "./pages/DashboardPage";
+import { DownloadsPage } from "./pages/DownloadsPage";
+import { FicDetailPage } from "./pages/FicDetailPage";
+import { LibraryPage } from "./pages/LibraryPage";
 import { LoginPage } from "./pages/LoginPage";
 import { NotificationsPage } from "./pages/NotificationsPage";
+import { SitesPage } from "./pages/SitesPage";
 import { AccountSettingsPage } from "./pages/settings/AccountSettingsPage";
 import { BackupSettingsPage } from "./pages/settings/BackupSettingsPage";
 import { NotificationPrefsPage } from "./pages/settings/NotificationPrefsPage";
 import { SettingsLayout } from "./pages/settings/SettingsLayout";
 import { SmtpSettingsPage } from "./pages/settings/SmtpSettingsPage";
+import { SourcesSettingsPage } from "./pages/settings/SourcesSettingsPage";
 import { StorageSettingsPage } from "./pages/settings/StorageSettingsPage";
+import { SyncSettingsPage } from "./pages/settings/SyncSettingsPage";
 import { ThemeSettingsPage } from "./pages/settings/ThemeSettingsPage";
 import { SetupWizard } from "./pages/setup/SetupWizard";
 
@@ -53,6 +59,10 @@ function App() {
                   }
                 >
                   <Route path="/dashboard" element={<DashboardPage />} />
+                  <Route path="/sites" element={<SitesPage />} />
+                  <Route path="/downloads" element={<DownloadsPage />} />
+                  <Route path="/library" element={<LibraryPage />} />
+                  <Route path="/library/:ficId" element={<FicDetailPage />} />
                   <Route
                     path="/notifications"
                     element={<NotificationsPage />}
@@ -64,6 +74,8 @@ function App() {
                     <Route path="account" element={<AccountSettingsPage />} />
                     <Route path="backup" element={<BackupSettingsPage />} />
                     <Route path="smtp" element={<SmtpSettingsPage />} />
+                    <Route path="sources" element={<SourcesSettingsPage />} />
+                    <Route path="sync" element={<SyncSettingsPage />} />
                     <Route
                       path="notifications"
                       element={<NotificationPrefsPage />}
