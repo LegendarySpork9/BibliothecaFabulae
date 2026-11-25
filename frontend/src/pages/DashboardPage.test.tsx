@@ -1,5 +1,6 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen } from "@testing-library/react";
+import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
 
 import { DashboardPage } from "./DashboardPage";
@@ -20,6 +21,21 @@ vi.mock("../api/storage", () => ({
   getStorageWarnings: vi.fn().mockResolvedValue([]),
 }));
 
+vi.mock("../api/fics", () => ({
+  getFics: vi.fn().mockResolvedValue({ items: [], total: 0 }),
+  importFic: vi.fn(),
+}));
+
+vi.mock("../api/sources", () => ({
+  getSources: vi.fn().mockResolvedValue([]),
+}));
+
+vi.mock("../contexts/ToastContext", () => ({
+  ToastContext: {
+    _currentValue: { showToast: vi.fn() },
+  },
+}));
+
 function renderDashboard() {
   const queryClient = new QueryClient({
     defaultOptions: {
@@ -29,7 +45,9 @@ function renderDashboard() {
 
   return render(
     <QueryClientProvider client={queryClient}>
-      <DashboardPage />
+      <MemoryRouter>
+        <DashboardPage />
+      </MemoryRouter>
     </QueryClientProvider>
   );
 }
